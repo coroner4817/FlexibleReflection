@@ -6,7 +6,9 @@
 #include <cstddef>
 #include <sstream>
 #include <memory>
+#include <regex>
 #include <functional>
+#include "Utils.h"
 
 namespace reflect {
 
@@ -22,6 +24,7 @@ struct TypeDescriptor {
     virtual ~TypeDescriptor() {}
     virtual std::string getFullName() const { return name; }
     virtual void dump(const void* obj, std::stringstream& ss, int indentLevel = 0) const = 0;
+    virtual void fulfill(void* obj, const std::string& data, int indentLevel = 0) const = 0;
 };
 
 //--------------------------------------------------------
@@ -105,6 +108,26 @@ struct TypeDescriptor_Struct : TypeDescriptor {
         }
         ss << std::string(4 * indentLevel, ' ') << "}";
     }
+    virtual void fulfill(void* obj, const std::string& data, int indentLevel) const override {
+      // obj here is already allocated
+      std::string indent = "\n" + std::string(4 * (indentLevel + 1), ' ');
+      std::string data_ = GetRootContent(data);
+      size_t curNeedle = data_.find(FormatStr("%s%s = %s", indent.c_str(), members.front().name, members.front().type->getFullName().c_str())) + 1;
+      for(size_t i = 0; i < members.size(); ++i){
+        size_t nextNeedle;
+        if(i == members.size() - 1){
+          nextNeedle = data_.size();
+        }else{
+          nextNeedle = data_.find(FormatStr("%s%s = %s", indent.c_str(), members[i+1].name, members[i+1].type->getFullName().c_str())) + 1;
+        }
+        // find between cur - next        
+        std::string content = GetRootContent(data_.substr(curNeedle, nextNeedle-curNeedle));
+        members[i].type->fulfill((char*) obj + members[i].offset, content, indentLevel + 1);
+
+        curNeedle = nextNeedle;
+      }
+
+    }
 };
 
 #define REFLECT() \
@@ -135,7 +158,9 @@ struct TypeDescriptor_StdVector : TypeDescriptor {
     TypeDescriptor* itemType;
     size_t (*getSize)(const void*);
     const void* (*getItem)(const void*, size_t);
-    
+    std::function<void(void*&, size_t)> instantiate;
+    std::function<void*(void*, size_t)> getRawItem;
+
     // YW - this ItemType will be Node
     template <typename ItemType>
     TypeDescriptor_StdVector(ItemType*)
@@ -145,11 +170,21 @@ struct TypeDescriptor_StdVector : TypeDescriptor {
             const auto& vec = *(const std::vector<ItemType>*) vecPtr;
             return vec.size();
         };
-	      // YW - this require the data type in the vector to be struct
         getItem = [](const void* vecPtr, size_t index) -> const void* {
             const auto& vec = *(const std::vector<ItemType>*) vecPtr;
             return &vec[index];
         };
+
+        instantiate = [](void*& obj, size_t sz) -> void{
+          auto& vec = *(std::vector<ItemType>*)obj;
+          vec.resize(sz);
+        };
+        // todo: use the template lambda with c++20
+        getRawItem = [](void* vecPtr, size_t index) -> void* {
+            auto& vec = *(std::vector<ItemType>*) vecPtr;
+            return &vec[index];
+        };
+
     }
     virtual std::string getFullName() const override {
         return std::string("std::vector<") + itemType->getFullName() + ">";
@@ -168,6 +203,36 @@ struct TypeDescriptor_StdVector : TypeDescriptor {
             }
             ss << std::string(4 * indentLevel, ' ') << "}";
         }
+    }
+    virtual void fulfill(void* obj, const std::string& data, int indentLevel) const override {
+      // std::cout << data << std::endl;
+      if(data.empty()){
+        instantiate(obj, 0);
+      }else{
+        // WTF with c++ regex?
+        // std::string regstr = R"(^\s{)" + std::to_string((indentLevel + 1) * 4) + R"(}\[\d\]\s)" + itemType->getFullName();
+        // std::regex reg(regstr);
+        // std::smatch matches;
+        // std::regex_match(data, matches, reg);
+
+        std::string indent = "\n" + std::string(4 * (indentLevel + 1), ' ');
+        std::vector<std::string> items;
+        size_t lastPos = 0;
+        size_t count = 0;
+        size_t pos;
+        while((pos = data.find(FormatStr("%s[%d] %s", indent.c_str(), count, itemType->getFullName().c_str()))) 
+                  != std::string::npos){
+          if(count) items.push_back(data.substr(lastPos, pos-lastPos));
+          lastPos = pos;
+          count++;
+        }
+        items.push_back(data.substr(lastPos));        
+
+        instantiate(obj, items.size());
+        for(size_t i = 0; i < items.size(); ++i){
+          itemType->fulfill(getRawItem(obj, i), items[i], indentLevel+1);
+        }
+      }
     }
 };
 
@@ -190,6 +255,7 @@ public:
 struct TypeDescriptor_StdSharedPtr : TypeDescriptor{
   TypeDescriptor* itemType;
   std::function<const void*(const void*)> getRawPtr;
+  std::function<void*(void*&)> instantiate;
 
   template <typename ItemType>
   TypeDescriptor_StdSharedPtr(ItemType*) 
@@ -199,6 +265,11 @@ struct TypeDescriptor_StdSharedPtr : TypeDescriptor{
       const auto& ptr = *(const std::shared_ptr<ItemType>*)obj;
       return ptr.get();
     };      
+    instantiate = [](void*& obj) -> void* {
+      auto& ptr = *(std::shared_ptr<ItemType>*)obj;
+      ptr = std::make_shared<ItemType>();
+      return ptr.get();
+    };
   }
   virtual std::string getFullName() const override {
     return std::string("std::shared_ptr<") + itemType->getFullName() + ">";
@@ -214,6 +285,16 @@ struct TypeDescriptor_StdSharedPtr : TypeDescriptor{
       itemType->dump(getRawPtr(obj), ss, indentLevel + 1);
       ss << std::endl;
       ss << std::string(4 * indentLevel, ' ') << "}";
+    }
+  }
+  virtual void fulfill(void* obj, const std::string& data, int indentLevel) const override {
+    // obj here the contaioner is already allocated but the data is not
+    if(data.empty()){
+      void* rawObj = instantiate(obj);
+      rawObj = nullptr;
+    }else{
+      void* rawObj = instantiate(obj);
+      itemType->fulfill(rawObj, data, indentLevel + 1);
     }
   }
 };

@@ -2,7 +2,6 @@
 
 using namespace std;
 
-
 namespace reflect {
 
 
@@ -11,7 +10,12 @@ struct TypeDescriptor_##type : TypeDescriptor {\
   TypeDescriptor_##type() : TypeDescriptor{#type, sizeof(type)} {\
   }\
   void dump(const void* obj, std::stringstream& ss, int /* unused */) const override {\
-    ss << #type << "{" << *(const type*)obj << "}";\
+    /* Convert to byte array, not human readable */\
+    auto p = reinterpret_cast<const char*>(obj);\
+    ss << #type << "{" << string(p, sizeof(type)) << "}";\
+  }\
+  void fulfill(void* obj, const std::string& data, int /* unused */) const override{\
+    *(type*)obj = ParseAs<type>(data);\
   }\
 };\
 template<>\
@@ -21,6 +25,10 @@ TypeDescriptor* getPrimitiveDescriptor<type>(){\
 }
 
 METAPROGRAMMING(int)
+METAPROGRAMMING(bool)
+METAPROGRAMMING(float)
+METAPROGRAMMING(double)
+METAPROGRAMMING(char)
 METAPROGRAMMING(string)
 
 } // namespace reflect
