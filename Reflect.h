@@ -23,7 +23,7 @@ struct TypeDescriptor {
     TypeDescriptor(const char* name, size_t size) : name{name}, size{size} {}
     virtual ~TypeDescriptor() {}
     virtual std::string getFullName() const { return name; }
-    virtual void dump(const void* obj, std::stringstream& ss, int indentLevel = 0) const = 0;
+    virtual void dump(const void* obj, std::stringstream& ss, bool readable = false, int indentLevel = 0) const = 0;
     virtual void fulfill(void* obj, const std::string& data, int indentLevel = 0) const = 0;
 };
 
@@ -98,12 +98,12 @@ struct TypeDescriptor_Struct : TypeDescriptor {
     }
     TypeDescriptor_Struct(const char* name, size_t size, const std::initializer_list<Member>& init) : TypeDescriptor{nullptr, 0}, members{init} {
     }
-    virtual void dump(const void* obj, std::stringstream& ss, int indentLevel) const override {
+    virtual void dump(const void* obj, std::stringstream& ss, bool readable, int indentLevel) const override {
         ss << name << " {" << std::endl;
         for (const Member& member : members) {
             ss << std::string(4 * (indentLevel + 1), ' ') << member.name << " = ";
             // YW - find the member base on offset. So this reflection design only work for struct  
-            member.type->dump((char*) obj + member.offset, ss, indentLevel + 1);
+            member.type->dump((char*) obj + member.offset, ss, readable, indentLevel + 1);
             ss << std::endl;
         }
         ss << std::string(4 * indentLevel, ' ') << "}";
@@ -189,7 +189,7 @@ struct TypeDescriptor_StdVector : TypeDescriptor {
     virtual std::string getFullName() const override {
         return std::string("std::vector<") + itemType->getFullName() + ">";
     }
-    virtual void dump(const void* obj, std::stringstream& ss, int indentLevel) const override {
+    virtual void dump(const void* obj, std::stringstream& ss, bool readable, int indentLevel) const override {
         size_t numItems = getSize(obj);
         ss << getFullName();
         if (numItems == 0) {
@@ -198,7 +198,7 @@ struct TypeDescriptor_StdVector : TypeDescriptor {
             ss << "{" << std::endl;
             for (size_t index = 0; index < numItems; index++) {
                 ss << std::string(4 * (indentLevel + 1), ' ') << "[" << index << "] ";
-                itemType->dump(getItem(obj, index), ss, indentLevel + 1);
+                itemType->dump(getItem(obj, index), ss, readable, indentLevel + 1);
                 ss << std::endl;
             }
             ss << std::string(4 * indentLevel, ' ') << "}";
@@ -275,14 +275,14 @@ struct TypeDescriptor_StdSharedPtr : TypeDescriptor{
     return std::string("std::shared_ptr<") + itemType->getFullName() + ">";
   }
 
-  virtual void dump(const void* obj, std::stringstream& ss, int indentLevel) const override {
+  virtual void dump(const void* obj, std::stringstream& ss, bool readable, int indentLevel) const override {
     ss << getFullName();
     if(!getRawPtr(obj)){
       ss << "{}";
     }else{
       ss << "{" << std::endl;
       ss << std::string(4 * (indentLevel + 1), ' ');
-      itemType->dump(getRawPtr(obj), ss, indentLevel + 1);
+      itemType->dump(getRawPtr(obj), ss, readable, indentLevel + 1);
       ss << std::endl;
       ss << std::string(4 * indentLevel, ' ') << "}";
     }

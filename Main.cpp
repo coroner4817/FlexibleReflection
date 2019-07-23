@@ -28,20 +28,28 @@ int main() {
                     {"banana", 125, nullptr, {
                         {"Hello", 15, std::make_shared<Subnode>(subnode2), {}}
                       }
-                    }, 
+                    },
                     {"cherry", 11, nullptr, {{}}},
-                    {"flico", 131, nullptr, {{}}}
+                    {"C++ is a general-purpose programming "
+                    "language created by Bjarne Stroustrup as"
+                    " an extension of the C programming language, "
+                    "or C with Classes.", 131, nullptr, {{}}}
                   }
                 };
 
     // Find Node's type descriptor
     reflect::TypeDescriptor* typeDesc = reflect::TypeResolver<Node>::get();
+
+    std::stringstream readable;
+    typeDesc->dump(&node, readable, true);
+    std::cout << readable.str() << std::endl;
+
+    std::cout << "----------------------------------" << std::endl;
     std::stringstream serialize;
     typeDesc->dump(&node, serialize);
     std::cout << serialize.str() << std::endl;
 
     std::cout << "----------------------------------" << std::endl;
-
     Node node_deserialized;
     typeDesc->fulfill(&node_deserialized, serialize.str());
     std::stringstream deserilze;
