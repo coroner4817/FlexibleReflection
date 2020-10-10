@@ -43,7 +43,7 @@ struct DefaultResolver {
     struct IsReflected {
         // YW - if T has a static member named "Reflection", value will be true
         //      because the func<T>(nullptr) can match both declaration above
-        //      At runtime, only when T::Reflection exist, will use the first func
+        //      At compile time, only when T::Reflection exist, will use the first func
         //      And also func(decltype(&T::Reflection)) return char, so value is true
         enum { value = (sizeof(func<T>(nullptr)) == sizeof(char)) };
     };
@@ -102,7 +102,7 @@ struct TypeDescriptor_Struct : TypeDescriptor {
         ss << name << " {" << std::endl;
         for (const Member& member : members) {
             ss << std::string(4 * (indentLevel + 1), ' ') << member.name << " = ";
-            // YW - find the member base on offset. So this reflection design only work for struct  
+            // YW - find the member base on offset. So this reflection design only work for struct
             member.type->dump((char*) obj + member.offset, ss, readable, indentLevel + 1);
             ss << std::endl;
         }
@@ -120,7 +120,7 @@ struct TypeDescriptor_Struct : TypeDescriptor {
         }else{
           nextNeedle = data_.find(FormatStr("%s%s = %s", indent.c_str(), members[i+1].name, members[i+1].type->getFullName().c_str())) + 1;
         }
-        // find between cur - next        
+        // find between cur - next
         std::string content = GetRootContent(data_.substr(curNeedle, nextNeedle-curNeedle));
         members[i].type->fulfill((char*) obj + members[i].offset, content, indentLevel + 1);
 
@@ -220,13 +220,13 @@ struct TypeDescriptor_StdVector : TypeDescriptor {
         size_t lastPos = 0;
         size_t count = 0;
         size_t pos;
-        while((pos = data.find(FormatStr("%s[%d] %s", indent.c_str(), count, itemType->getFullName().c_str()))) 
+        while((pos = data.find(FormatStr("%s[%d] %s", indent.c_str(), count, itemType->getFullName().c_str())))
                   != std::string::npos){
           if(count) items.push_back(data.substr(lastPos, pos-lastPos));
           lastPos = pos;
           count++;
         }
-        items.push_back(data.substr(lastPos));        
+        items.push_back(data.substr(lastPos));
 
         instantiate(obj, items.size());
         for(size_t i = 0; i < items.size(); ++i){
@@ -237,7 +237,7 @@ struct TypeDescriptor_StdVector : TypeDescriptor {
 };
 
 // Partially specialize TypeResolver<> for std::vectors:
-// YW - match for the std::vector and also extrat the container data type 
+// YW - match for the std::vector and also extrat the container data type
 //      So the T here is the Node not the std::vector<Node>
 //      Any other container class including smart pointer should following this way
 template <typename T>
@@ -258,13 +258,13 @@ struct TypeDescriptor_StdSharedPtr : TypeDescriptor{
   std::function<void*(void*&)> instantiate;
 
   template <typename ItemType>
-  TypeDescriptor_StdSharedPtr(ItemType*) 
+  TypeDescriptor_StdSharedPtr(ItemType*)
     : TypeDescriptor{"std::shared_ptr<>", sizeof(std::shared_ptr<ItemType>)},
                       itemType{TypeResolver<ItemType>::get()} {
     getRawPtr = [](const void* obj) -> const void* {
       const auto& ptr = *(const std::shared_ptr<ItemType>*)obj;
       return ptr.get();
-    };      
+    };
     instantiate = [](void*& obj) -> void* {
       auto& ptr = *(std::shared_ptr<ItemType>*)obj;
       ptr = std::make_shared<ItemType>();
@@ -304,7 +304,7 @@ class TypeResolver<std::shared_ptr<T>> {
 public:
   static TypeDescriptor* get() {
     static TypeDescriptor_StdSharedPtr typeDesc{(T*) nullptr};
-    return &typeDesc; 
+    return &typeDesc;
   }
 };
 

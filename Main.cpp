@@ -40,6 +40,7 @@ int main() {
     // Find Node's type descriptor
     reflect::TypeDescriptor* typeDesc = reflect::TypeResolver<Node>::get();
 
+    // print the readable serialization
     std::stringstream readable;
     typeDesc->dump(&node, readable, true);
     std::cout << readable.str() << std::endl;
@@ -58,7 +59,7 @@ int main() {
 
     std::cout << "----------------------------------" << std::endl;
     if(serialize.str() == deserilze.str()){
-      std::cout << "Pass" << std::endl;
+      std::cout << "Pass!" << std::endl;
     }
 
     return 0;
