@@ -54,7 +54,7 @@ int main() {
     Node node_deserialized;
     typeDesc->fulfill(&node_deserialized, serialize.str());
     std::stringstream deserilze;
-    typeDesc->dump(&node, deserilze);
+    typeDesc->dump(&node_deserialized, deserilze);
     std::cout << deserilze.str() << std::endl;
 
     std::cout << "----------------------------------" << std::endl;

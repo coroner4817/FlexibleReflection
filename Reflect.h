@@ -289,10 +289,8 @@ struct TypeDescriptor_StdSharedPtr : TypeDescriptor{
   }
   virtual void fulfill(void* obj, const std::string& data, int indentLevel) const override {
     // obj here the contaioner is already allocated but the data is not
-    if(data.empty()){
-      void* rawObj = instantiate(obj);
-      rawObj = nullptr;
-    }else{
+    if(!data.empty()){
+      // only instantiate obj when data not empty
       void* rawObj = instantiate(obj);
       itemType->fulfill(rawObj, data, indentLevel + 1);
     }
